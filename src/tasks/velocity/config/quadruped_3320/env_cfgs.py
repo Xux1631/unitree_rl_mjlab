@@ -234,6 +234,7 @@ def quadruped_3320_stairs_env_cfg(
   #     and leave a single, unambiguous objective: move forward at the commanded
   #     speed.
   cfg.commands["twist"].heading_command = False
+  cfg.commands["twist"].ranges.heading = None   # required when heading_command is off
   cfg.commands["twist"].ranges.ang_vel_z = (0.0, 0.0)
   cfg.commands["twist"].rel_heading_envs = 0.0
   cfg.commands["twist"].rel_standing_envs = 0.0
