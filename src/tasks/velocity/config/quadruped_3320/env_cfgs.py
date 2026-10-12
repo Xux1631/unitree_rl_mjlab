@@ -257,10 +257,12 @@ def quadruped_3320_stairs_env_cfg(
   #     free to improve on it.
   cfg.rewards["trot_reference"] = RewardTermCfg(
     func=trot_gait_reference,
-    weight=2.0,
+    weight=10.0,
     params={
+      # exactly the parameters of the open-loop trot that was measured to walk
+      # this model forward (T=0.6 s, A=0.25 rad at the A2 gains, +1.60 m in 8 s)
       "period": 0.6,
-      "amplitude": 0.30,
+      "amplitude": 0.25,
       "std": 0.35,
       "command_name": "twist",
       "command_threshold": 0.05,
@@ -271,9 +273,10 @@ def quadruped_3320_stairs_env_cfg(
     params={
       "reward_name": "trot_reference",
       "weight_stages": (
-        {"step": 0, "weight": 2.0},
-        {"step": 2000, "weight": 0.5},
-        {"step": 4000, "weight": 0.0},
+        {"step": 0, "weight": 10.0},
+        {"step": 1500, "weight": 5.0},
+        {"step": 3000, "weight": 1.0},
+        {"step": 4500, "weight": 0.0},
       ),
     },
   )
