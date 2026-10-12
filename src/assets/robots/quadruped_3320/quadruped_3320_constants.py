@@ -59,11 +59,22 @@ POLICY_JOINT_ORDER: tuple[str, ...] = tuple(
   f"{leg}_{family}_joint" for leg in ("RL", "FL", "RR", "FR") for family in ("hip", "thigh", "calf")
 )
 
-# stiffness, damping, effort_limit (A2 reference values).
+# stiffness, damping, effort_limit.
+#
+# The A2 reference values are 100/4 (hip, thigh) and 150/6 (calf); those are
+# sized for a ~40 kg airframe.  This model is 9.2106 kg, so the same gains give
+# roughly 4x the control bandwidth: a 50 Hz policy then cannot command smooth
+# motion and instead bang-bang flips the actions every step (measured raw
+# action-rate magnitude ~17, i.e. ~1.2 of the +/-3 command range per step), which
+# is exactly what attempts 1-4 converged to.  Scale stiffness AND damping by the
+# mass ratio (9.2106/40 ~= 0.23; rounded up to 0.3 for margin) so the closed-loop
+# bandwidth is appropriate for the 5 ms physics step / 50 Hz control.
+# effort_limit is a motor property and is left at the A2 value.
+_GAIN_SCALE = 0.3
 _GAINS: dict[str, tuple[float, float, float]] = {
-  "hip": (100.0, 4.0, 120.0),
-  "thigh": (100.0, 4.0, 120.0),
-  "calf": (150.0, 6.0, 180.0),
+  "hip": (100.0 * _GAIN_SCALE, 4.0 * _GAIN_SCALE, 120.0),
+  "thigh": (100.0 * _GAIN_SCALE, 4.0 * _GAIN_SCALE, 120.0),
+  "calf": (150.0 * _GAIN_SCALE, 6.0 * _GAIN_SCALE, 180.0),
 }
 
 QUADRUPED_3320_ACTUATORS = tuple(
