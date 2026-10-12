@@ -341,6 +341,19 @@ def quadruped_3320_stairs_env_cfg(
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
     twist_cmd.ranges.ang_vel_z = (-1.0, 1.0)
 
+  if play and "randomize_terrain" in cfg.events:
+    # `randomize_terrain` is registered AFTER `reset_base` and both are `reset`
+    # events, so reset_base places the robot using the terrain origins of the
+    # OLD terrain and the terrain is regenerated afterwards -- leaving the robot
+    # mis-placed relative to the ground it now stands on.  Measured: one trial
+    # made body contact 20 ms in with a course-frame x of -0.368 m, i.e. it
+    # spawned intersecting a step.  Run the terrain randomization first.
+    ev = cfg.events
+    cfg.events = {
+      "randomize_terrain": ev["randomize_terrain"],
+      **{k: v for k, v in ev.items() if k != "randomize_terrain"},
+    }
+
   return cfg
 
 
