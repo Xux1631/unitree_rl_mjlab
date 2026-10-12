@@ -16,10 +16,14 @@ into `TrialEvaluator`.
 
 1. **Environment.** `load_env_cfg(task_id, play=True)` builds exactly the
    configuration used by `play.py`: full (un-curriculised) 4-step flight,
-   terrain randomisation off per-patch, `reset_base` yaw pinned to 0, episode
-   length effectively infinite, and a **constant** twist command whose forward
-   speed is fixed per task (`0.4` / `0.6` / `0.8` m/s). `num_envs` is forced to
-   `1` so every trial is one independent episode.
+   `reset_base` yaw pinned to 0, episode length effectively infinite, and a
+   **constant** twist command whose forward speed is fixed per task
+   (`0.4` / `0.6` / `0.8` m/s). `num_envs` is forced to
+   `1` so every trial is one independent episode. Two in-memory config
+   normalisations are applied (the registered files are not modified): the
+   unused heading range is cleared (see *Known upstream issues* below), and the
+   course-frame origin is taken before the reset, because play mode randomises
+   the terrain patch with an event that runs after `reset_base`.
 2. **Checkpoint.** `--checkpoint` accepts a `.pt` file, a run directory that
    contains `model_*.pt`, or an experiment log root. Directories are resolved
    with `mjlab.utils.os.get_checkpoint_path` (newest run / newest alphabetical
@@ -31,9 +35,10 @@ into `TrialEvaluator`.
    mean) and taken under `torch.no_grad()`.
 4. **Per-step samples.** For each control step the adapter builds a
    `TrialSample` in the **course frame**:
-   * `x` = base-link world `x` minus the patchorigin (`env_origins[0][0]`),
-     so the nominal spawn is `x = 0` and the first riser sits at
-     `x = 0.9 m` regardless of where the randomised patch is;
+   * `x` = base-link world `x` minus the **placement** patch origin
+     (`env_origins[0][0]` sampled just before `env.reset()`), so the nominal
+     spawn is `x = 0` and the first riser sits at `x = 0.9 m` regardless of
+     which random patch the environment is on;
    * `z` = base-link world height (approach ground is `z = 0`, but the base
      *link* stands ≈0.33 m above it — see the reach check below);
    * `roll` / `pitch` from the base quaternion via
@@ -180,16 +185,56 @@ python scripts/eval_stairs.py Quadruped-3320-Stairs \
 Tiers other than 0.4 m/s still print the summary and write the CSV but do not
 fail the process. `2` is returned for argument / unknown-task errors.
 
+## Known upstream issues (worked around, not modified)
+
+Wiring this harness surfaced two pre-existing defects in the **play**
+configuration. Both live in files this task must not modify
+(`src/tasks/velocity/config/quadruped_3320/env_cfgs.py`), so the CLI compensates
+in memory — the terrain geometry, collisions, command speed and success
+criteria are never changed.
+
+1. **`heading_command=False` with `ranges.heading` still set.**
+   `make_velocity_env_cfg` registers the twist command with
+   `heading_command=True` and `ranges.heading=(-π, π)`; the play block sets
+   `heading_command=False` but leaves the heading range. mjlab's
+   `UniformVelocityCommand.__init__` rejects that combination with
+   `ValueError: ranges.heading is set but heading_command=False`. The CLI's
+   `normalize_play_cfg()` clears the now-ignored heading range. **This also
+   breaks `scripts/play.py` for this task**, which should be fixed at the
+   source by adding `twist_cmd.ranges.heading = None` next to
+   `twist_cmd.heading_command = False`.
+2. **`randomize_terrain` runs after `reset_base`.** Play mode appends the
+   `randomize_terrain` reset event last, so `reset_base` places the robot
+   relative to the *old* `env_origins` and the terrain patch is re-drawn
+   afterwards. All patches are the same mandated flight, but the course-frame
+   origin must be the **placement** origin: the CLI samples `env_origins`
+   immediately before `env.reset()`. Reading it after the reset would offset
+   `x` by whole patch spacings.
+
 ## Verification status
 
-Verified without a GPU / without building the environment:
+Verified here (CPU only; the GPU is occupied by the in-progress training run):
 
-* `python -m pytest tests/test_stair_eval.py -q` — 24 passed (pure logic).
+* `env -u PYTHONPATH python -m pytest tests/test_stair_eval.py -q -p no:cacheprovider`
+  — **24 passed** (pure logic).
 * `python scripts/eval_stairs.py --help` — full CLI help.
 * `python -c "import ast; ast.parse(open('scripts/eval_stairs.py').read())"`.
-* Dry import of the module, checkpoint resolution for a `.pt`, a run directory
-  and a log root, and unknown-task rejection.
+* Dry import of the module; checkpoint resolution for a `.pt`, a run directory
+  and a log root; unknown-task rejection (exit 2).
+* **End-to-end run on CPU** (`CUDA_VISIBLE_DEVICES="" ... --device cpu`,
+  1 and 2 trials) against the iteration-0 checkpoint: environment built,
+  checkpoint loaded via the runner, policy rolled out, samples evaluated, CSV
+  and summary written, exit code 1 because the untrained policy stalls
+  (`failure_reason=stuck` after 6.02 s, `max_x ≈ 0`). Per-trial seeds
+  (`7`, `8`) produced different spawns, confirming independent episodes.
 
-Not runtime-verified here (a training run occupies the GPU): live environment
-construction, policy inference, contact-sensor reads and video recording. See
-the CLI's `[INFO]` output and `results.csv` for the first real run.
+Not yet exercised end-to-end:
+
+* GPU execution (the `cuda:0` path) — should be identical to CPU because
+  `play.py` uses the same code path.
+* `--video-dir` recording: `OffscreenRenderer` needs a display/EGL context and
+  was deliberately not started while training holds the GPU. The wiring
+  mirrors `play.py`'s `VideoRecorder`; expect to set `MUJOCO_GL=egl` (as
+  `train.py` does) for headless recording.
+* A real trained policy clearing the staircase; only the pure-logic tests
+  exercise the success branch.

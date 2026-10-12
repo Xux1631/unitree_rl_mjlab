@@ -155,6 +155,29 @@ def _build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 
+def normalize_play_cfg(env_cfg) -> None:
+  """Make the copied play config self-consistent without changing its intent.
+
+  The registered play config turns off heading commands but keeps the inherited
+  ``ranges.heading`` range; mjlab's ``UniformVelocityCommand`` rejects that
+  combination at construction.  The heading range is ignored once
+  ``heading_command=False``, so clearing it changes nothing that is measured
+  (terrain, collisions, command speed and criteria are untouched).
+  """
+  commands = getattr(env_cfg, "commands", None)
+  twist = commands.get("twist") if commands else None
+  if twist is None:
+    return
+  ranges = getattr(twist, "ranges", None)
+  if not getattr(twist, "heading_command", False) and ranges is not None:
+    if ranges.heading is not None:
+      print(
+        "[WARN] Play config has heading_command=False with ranges.heading set; "
+        "clearing the unused heading range."
+      )
+      ranges.heading = None
+
+
 def resolve_checkpoint(spec: str | Path) -> Path:
   """Resolve a checkpoint from a ``.pt`` file, a run dir, or a log root.
 
@@ -282,8 +305,13 @@ def _run_trial(
   if video is not None and video_starts is not None:
     video_starts.append(global_steps)
 
-  obs, _ = env.reset()
+  # play mode randomises the terrain patch on reset with an event that runs
+  # *after* ``reset_base``, so the robot is placed relative to the origin that
+  # existed before the reset, not the one selected afterwards.  All patches are
+  # the same mandated flight, so anchoring the course frame to the placement
+  # origin is what makes "0.9 m in front of the first riser" correct.
   origin_x = float(env.unwrapped.scene.env_origins[0][0].item())
+  obs, _ = env.reset()
   command = env.unwrapped.command_manager.get_command("twist")
   command_speed = float(command[0, 0].item())
   step_dt = float(env.unwrapped.step_dt)
@@ -390,6 +418,7 @@ def run_eval(args: argparse.Namespace) -> int:
 
   env_cfg = load_env_cfg(args.task_id, play=True)
   agent_cfg = load_rl_cfg(args.task_id)
+  normalize_play_cfg(env_cfg)
 
   # One environment per trial keeps episodes fully independent.
   env_cfg.scene.num_envs = 1

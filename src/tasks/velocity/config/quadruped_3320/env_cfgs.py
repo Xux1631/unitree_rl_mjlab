@@ -216,6 +216,10 @@ def quadruped_3320_stairs_env_cfg(
     assert isinstance(twist_cmd, UniformVelocityCommandCfg)
     twist_cmd.resampling_time_range = (int(1e9), int(1e9))
     twist_cmd.heading_command = False
+    # `ranges.heading` must be cleared as well: UniformVelocityCommand raises
+    # "ranges.heading is set but heading_command=False" otherwise, which made
+    # plain `scripts/play.py` unable to even build the environment.
+    twist_cmd.ranges.heading = None
     twist_cmd.rel_standing_envs = 0.0
     twist_cmd.rel_heading_envs = 0.0
     twist_cmd.ranges.lin_vel_x = (command_speed, command_speed)
