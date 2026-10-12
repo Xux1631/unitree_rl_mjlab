@@ -373,6 +373,18 @@ def quadruped_3320_stairs_env_cfg(
       **{k: v for k, v in ev.items() if k != "randomize_terrain"},
     }
 
+  if play:
+    # The inherited reset pose randomisation shifts the spawn by +-0.5 m in x
+    # and y around the patch origin, so the robot does NOT start at the
+    # designed 0.9 m in front of the first riser.  Measured x-origin was
+    # -0.33..+0.38 instead of +0.70, which put trials on top of / behind the
+    # approach (2/5 made body contact 40 ms in) and left them unable to reach
+    # the staircase.  For evaluation the start pose must be the assessed one:
+    # standing at the course start, facing +x, on the approach.
+    cfg.events["reset_base"].params["pose_range"]["x"] = (0.7, 0.7)
+    cfg.events["reset_base"].params["pose_range"]["y"] = (0.0, 0.0)
+    cfg.events["reset_base"].params["pose_range"]["yaw"] = (0.0, 0.0)
+
   return cfg
 
 
