@@ -324,16 +324,21 @@ def quadruped_3320_stairs_env_cfg(
     twist_cmd = cfg.commands["twist"]
     assert isinstance(twist_cmd, UniformVelocityCommandCfg)
     twist_cmd.resampling_time_range = (int(1e9), int(1e9))
-    twist_cmd.heading_command = False
-    # `ranges.heading` must be cleared as well: UniformVelocityCommand raises
-    # "ranges.heading is set but heading_command=False" otherwise, which made
-    # plain `scripts/play.py` unable to even build the environment.
-    twist_cmd.ranges.heading = None
     twist_cmd.rel_standing_envs = 0.0
-    twist_cmd.rel_heading_envs = 0.0
+    # Keep heading control ON, exactly as in training.  Disabling it here while
+    # the policy is trained WITH it makes the deployed robot wander: the policy
+    # relies on the heading feedback to hold a straight line, and with no yaw
+    # term at all it drifts sideways (measured on a trained checkpoint: 4.3 m of
+    # travel with a NEGATIVE mean forward component, so the course-frame
+    # progress stayed at ~0.45 m and every trial was scored "stuck").  The play
+    # configuration must match the training configuration apart from the
+    # constant command speed.
+    twist_cmd.heading_command = True
+    twist_cmd.ranges.heading = (-3.141592653589793, 3.141592653589793)
+    twist_cmd.rel_heading_envs = 1.0
     twist_cmd.ranges.lin_vel_x = (command_speed, command_speed)
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
-    twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
+    twist_cmd.ranges.ang_vel_z = (-1.0, 1.0)
 
   return cfg
 
