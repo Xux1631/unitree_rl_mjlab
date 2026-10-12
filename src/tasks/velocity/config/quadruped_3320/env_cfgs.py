@@ -152,6 +152,19 @@ def quadruped_3320_stairs_env_cfg(
   #     cannot outbid actually travelling.
   cfg.rewards["foot_gait"].weight = 0.25
 
+  # (6) Motion penalties vs the locomotion incentive.  An open-loop trot test
+  #     (A2 gains, 12 parameter combinations) walks this model forward at
+  #     ~0.32 m/s while staying upright, so the airframe and the actuators are
+  #     NOT the blocker.  The blocker is that standing and walking scored about
+  #     the same: standing earned pose+gait+ang+lin ~= +1.4/step, while walking
+  #     earned ~+2.1/step minus action_rate_l2 ~0.48, foot_slip ~0.13 and
+  #     foot_clearance ~0.09, i.e. also ~1.4/step.  Cut the two penalties that
+  #     specifically punish making a gait, and raise the travel incentive, so
+  #     walking clearly dominates.
+  cfg.rewards["action_rate_l2"].weight = -0.015   # was -0.05
+  cfg.rewards["foot_slip"].weight = -0.25         # was -0.5 (upstream value)
+  cfg.rewards["track_linear_velocity"].weight = 3.0  # was 2.0
+
   # (3) fell_over termination.  The upstream limit is 70 deg, but the assessment
   #     fails a run when |roll| or |pitch| exceeds 45 deg, so 70 deg would let the
   #     policy learn postures that cannot pass.  Tighten it to 50 deg: close to
