@@ -385,6 +385,15 @@ def quadruped_3320_stairs_env_cfg(
     cfg.events["reset_base"].params["pose_range"]["y"] = (0.0, 0.0)
     cfg.events["reset_base"].params["pose_range"]["yaw"] = (0.0, 0.0)
 
+  # (10) pose.  A stationary robot collects +0.61/step from the pose reward --
+  #      the single largest term it earns while doing nothing, and bigger than
+  #      the +0.37 x 3.0 = 1.1 it gets from velocity tracking.  The upstream
+  #      weight of 1.0 is tuned for a 40 kg A2 whose stance is genuinely hard to
+  #      hold; this 9.2 kg model stands trivially, so pose is nearly free reward
+  #      that anchors the standing local optimum.  Cut it to 0.3 so the pose
+  #      reward can no longer outbid travelling.
+  cfg.rewards["pose"].weight = 0.3
+
   return cfg
 
 
