@@ -70,7 +70,7 @@ POLICY_JOINT_ORDER: tuple[str, ...] = tuple(
 # mass ratio (9.2106/40 ~= 0.23; rounded up to 0.3 for margin) so the closed-loop
 # bandwidth is appropriate for the 5 ms physics step / 50 Hz control.
 # effort_limit is a motor property and is left at the A2 value.
-_GAIN_SCALE = 0.3
+_GAIN_SCALE = 1.0  # attempt 5 showed softer gains made the action thrashing WORSE (raw rate 31 vs 17), so the A2 values are kept
 _GAINS: dict[str, tuple[float, float, float]] = {
   "hip": (100.0 * _GAIN_SCALE, 4.0 * _GAIN_SCALE, 120.0),
   "thigh": (100.0 * _GAIN_SCALE, 4.0 * _GAIN_SCALE, 120.0),

@@ -224,6 +224,25 @@ def quadruped_3320_stairs_env_cfg(
   cfg.commands["twist"].ranges.ang_vel_z = (0.0, 0.0)
   cfg.curriculum.pop("command_vel", None)   # do not widen it again
 
+  # (8) Attempt 6 -- strip every incentive that is NOT forward translation.
+  #     Attempts 1-5 all raised the reward while the robot failed to move, and
+  #     error_vel_xy and error_vel_yaw both climbed to ~1.0-1.2. Half of the
+  #     reward budget was angular (heading control on for EVERY env), foot_gait
+  #     pays for contact phasing (satisfiable by marching or spinning in place)
+  #     and the phase observation biases the policy towards periodic jitter.
+  #     The assessment only needs straight forward travel, so remove all of it
+  #     and leave a single, unambiguous objective: move forward at the commanded
+  #     speed.
+  cfg.commands["twist"].heading_command = False
+  cfg.commands["twist"].ranges.ang_vel_z = (0.0, 0.0)
+  cfg.commands["twist"].rel_heading_envs = 0.0
+  cfg.commands["twist"].rel_standing_envs = 0.0
+  cfg.rewards["foot_gait"].weight = 0.0
+  cfg.rewards["stand_still"].weight = 0.0
+  cfg.rewards["track_angular_velocity"].weight = 0.0
+  for group in ("actor", "critic"):
+    cfg.observations[group].terms.pop("phase", None)
+
   # Apply play mode overrides.
   if play:
     # Effectively infinite episode length.
