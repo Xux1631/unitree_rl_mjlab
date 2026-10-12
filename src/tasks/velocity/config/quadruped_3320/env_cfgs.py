@@ -136,6 +136,22 @@ def quadruped_3320_stairs_env_cfg(
   #     fall.  Double the penalty relative to the upstream rough-terrain value.
   cfg.rewards["foot_slip"].weight = -0.5
 
+  # (4) track_linear_velocity.  The upstream kernel is exp(-e^2 / std^2) with
+  #     std = sqrt(0.25) = 0.5, i.e. it is essentially zero once the velocity
+  #     error exceeds ~1 m/s.  Attempt 1 showed the robot settling into a
+  #     stand/march-in-place local optimum: track_linear_velocity plateaued at
+  #     ~0.28 while the commanded speed was ~0.5-1.0 m/s, so the gradient back
+  #     towards locomotion was exponentially flat.  Widen the kernel to
+  #     std = 1.0 (a 0.1 m/s error still scores 0.99, so the 0.4 m/s test tier
+  #     is unaffected) and raise the weight so tracking beats standing.
+  cfg.rewards["track_linear_velocity"].params["std"] = 1.0
+  cfg.rewards["track_linear_velocity"].weight = 2.0
+
+  # (5) foot_gait.  The contact-sequence reward can be satisfied by marching in
+  #     place, which is exactly what attempt 1 converged to.  Halve it so it
+  #     cannot outbid actually travelling.
+  cfg.rewards["foot_gait"].weight = 0.25
+
   # (3) fell_over termination.  The upstream limit is 70 deg, but the assessment
   #     fails a run when |roll| or |pitch| exceeds 45 deg, so 70 deg would let the
   #     policy learn postures that cannot pass.  Tighten it to 50 deg: close to
