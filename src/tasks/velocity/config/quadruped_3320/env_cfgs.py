@@ -282,10 +282,11 @@ def quadruped_3320_stairs_env_cfg(
     params={
       "reward_name": "trot_reference",
       "weight_stages": (
-        {"step": 0, "weight": 10.0},
-        {"step": 1500, "weight": 5.0},
-        {"step": 3000, "weight": 1.0},
-        {"step": 4500, "weight": 0.0},
+        # Fine-tuning run (v11) resumes from the v9 checkpoint that already
+        # walks at 0.54 m/s, so the trot reference has done its job: keeping it
+        # non-zero during annealing perturbs the policy while it is trying to
+        # learn to point the gait forward.  Off from the start.
+        {"step": 0, "weight": 0.0},
       ),
     },
   )
