@@ -335,7 +335,13 @@ def quadruped_3320_stairs_env_cfg(
     # configuration must match the training configuration apart from the
     # constant command speed.
     twist_cmd.heading_command = True
-    twist_cmd.ranges.heading = (-3.141592653589793, 3.141592653589793)
+    # Pin the HEADING command to 0 as well.  With the inherited range of
+    # (-pi, pi) the single sample taken at reset can point the robot backwards,
+    # and then it correctly tracks "walk forward" in its own frame while
+    # travelling AWAY from the staircase -- which is exactly the negative
+    # forward component seen in every rollout so far.  The assessment wants the
+    # robot to walk forward down the course, so hold heading 0 (the reset yaw).
+    twist_cmd.ranges.heading = (0.0, 0.0)
     twist_cmd.rel_heading_envs = 1.0
     twist_cmd.ranges.lin_vel_x = (command_speed, command_speed)
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
