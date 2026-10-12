@@ -144,7 +144,7 @@ def quadruped_3320_stairs_env_cfg(
   #     towards locomotion was exponentially flat.  Widen the kernel to
   #     std = 1.0 (a 0.1 m/s error still scores 0.99, so the 0.4 m/s test tier
   #     is unaffected) and raise the weight so tracking beats standing.
-  cfg.rewards["track_linear_velocity"].params["std"] = 1.0
+  cfg.rewards["track_linear_velocity"].params["std"] = 0.5
   cfg.rewards["track_linear_velocity"].weight = 2.0
 
   # (5) foot_gait.  The contact-sequence reward can be satisfied by marching in
@@ -209,6 +209,20 @@ def quadruped_3320_stairs_env_cfg(
     func=mdp.illegal_contact,
     params={"sensor_name": nonfoot_ground_cfg.name, "force_threshold": 10.0},
   )
+
+  # (7) Forward-only command distribution.  This is the decisive change.  With
+  #     the upstream range (-0.5, 1.0) about a third of the commands are
+  #     backward and many are near zero, so a stationary robot harvests most of
+  #     the tracking reward; attempts 1-3 all converged to standing because of
+  #     it.  The assessment only ever tests FORWARD motion at 0.4 / 0.6 / 0.8
+  #     m/s, so train on 0.3..0.7 m/s forward with no lateral or yaw command.
+  #     Standing then scores exp(-(0.5/0.5)^2) = 0.37 of the maximum while
+  #     walking scores ~1.0, a 2.7x advantage worth ~+1.9/step at weight 3.0 --
+  #     far more than the remaining motion penalties (~0.3/step).
+  cfg.commands["twist"].ranges.lin_vel_x = (0.3, 0.7)
+  cfg.commands["twist"].ranges.lin_vel_y = (0.0, 0.0)
+  cfg.commands["twist"].ranges.ang_vel_z = (0.0, 0.0)
+  cfg.curriculum.pop("command_vel", None)   # do not widen it again
 
   # Apply play mode overrides.
   if play:
