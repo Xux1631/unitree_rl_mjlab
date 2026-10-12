@@ -8,13 +8,14 @@ from src.assets.robots import (
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.envs.mdp.actions import JointPositionActionCfg
-from mjlab.managers import TerminationTermCfg
+from mjlab.managers import CurriculumTermCfg, RewardTermCfg, TerminationTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg, RayCastSensorCfg
 from mjlab.tasks.velocity import mdp
 from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 
 from src.tasks.velocity.mdp.stairs_terrain import BoxStraightStairsTerrainCfg
+from src.tasks.velocity.mdp.gait_reference import trot_gait_reference
 from src.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
 
 TerrainType = Literal["rough", "obstacles"]
@@ -243,6 +244,37 @@ def quadruped_3320_stairs_env_cfg(
   cfg.rewards["track_angular_velocity"].weight = 0.0
   for group in ("actor", "critic"):
     cfg.observations[group].terms.pop("phase", None)
+
+  # (9) Trot-reference shaping.  Attempts 1-6 all stalled at the "do nothing"
+  #     velocity-tracking ceiling; PPO never discovered a gait even though an
+  #     open-loop trot drives this model forward at ~0.32 m/s upright.  This
+  #     term rewards the joints for following that trot as a function of the gait
+  #     phase, supplying the missing gradient.  It is shaping only -- the policy
+  #     is still plain PPO on the task reward, the reference is our own
+  #     open-loop gait, and the weight is annealed to zero so the final policy is
+  #     free to improve on it.
+  cfg.rewards["trot_reference"] = RewardTermCfg(
+    func=trot_gait_reference,
+    weight=2.0,
+    params={
+      "period": 0.6,
+      "amplitude": 0.30,
+      "std": 0.35,
+      "command_name": "twist",
+      "command_threshold": 0.05,
+    },
+  )
+  cfg.curriculum["trot_weight"] = CurriculumTermCfg(
+    func=mdp.reward_weight,
+    params={
+      "reward_name": "trot_reference",
+      "weight_stages": (
+        {"step": 0, "weight": 2.0},
+        {"step": 2000, "weight": 0.5},
+        {"step": 4000, "weight": 0.0},
+      ),
+    },
+  )
 
   # Apply play mode overrides.
   if play:
