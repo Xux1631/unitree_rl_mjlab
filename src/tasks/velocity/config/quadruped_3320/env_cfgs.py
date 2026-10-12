@@ -234,14 +234,23 @@ def quadruped_3320_stairs_env_cfg(
   #     The assessment only needs straight forward travel, so remove all of it
   #     and leave a single, unambiguous objective: move forward at the commanded
   #     speed.
-  cfg.commands["twist"].heading_command = False
-  cfg.commands["twist"].ranges.heading = None   # required when heading_command is off
-  cfg.commands["twist"].ranges.ang_vel_z = (0.0, 0.0)
-  cfg.commands["twist"].rel_heading_envs = 0.0
+  # (8a) Attempt 6 stripped ALL angular feedback to leave "forward translation"
+  #      as the only incentive.  Attempt 9 showed that works -- the trot
+  #      reference finally pushed the policy out of the standing optimum and it
+  #      learned to locomote (5.4 m in 10 s, 0.54 m/s) -- but with no yaw or
+  #      lateral feedback nothing kept it on course, so its FORWARD component
+  #      was negative (mean dx -1.03 m while travelling 5.37 m): it walked
+  #      sideways and wandered.  Restore heading control so the gait it now has
+  #      is actually pointed down the course; keep the forward-only speed
+  #      command and the trot bootstrap that produced the gait.
+  cfg.commands["twist"].heading_command = True
+  cfg.commands["twist"].ranges.heading = (-3.141592653589793, 3.141592653589793)
+  cfg.commands["twist"].ranges.ang_vel_z = (-1.0, 1.0)
+  cfg.commands["twist"].rel_heading_envs = 1.0
   cfg.commands["twist"].rel_standing_envs = 0.0
   cfg.rewards["foot_gait"].weight = 0.0
   cfg.rewards["stand_still"].weight = 0.0
-  cfg.rewards["track_angular_velocity"].weight = 0.0
+  cfg.rewards["track_angular_velocity"].weight = 1.0
   # NB: the phase observation is KEPT.  attempt 7 initially removed it while
   # also adding a phase-dependent trot-reference reward, which left the policy
   # blind to the phase it was asked to track -- the reference was unusable.
