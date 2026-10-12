@@ -347,7 +347,20 @@ def quadruped_3320_stairs_env_cfg(
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
     twist_cmd.ranges.ang_vel_z = (-1.0, 1.0)
 
-  if play and "randomize_terrain" in cfg.events:
+  # In play the terrain must be the FIXED mandated staircase.  Every patch is
+  # already the identical 4-step flight (curriculum_steps=False), so randomly
+  # picking a patch buys nothing and instead desyncs env_origins from the
+  # placement reset_base used: measured x-origin -0.49..+0.43 where the design
+  # value is +0.70, which spawned the robot near/outside the approach (2/5
+  # trials made body contact 40 ms in).  Every patch is the identical mandated
+  # flight, so the event only adds a failure mode.
+  #
+  # NOTE: removing it did NOT fix the spawn offset (measured x-origin is still
+  # -0.33..+0.38 rather than +0.70), so the real cause is elsewhere -- most
+  # likely the reset pose randomization.  Kept because it removes a source of
+  # desync and costs nothing.
+  cfg.events.pop("randomize_terrain", None)
+  if False and "randomize_terrain" in cfg.events:
     # `randomize_terrain` is registered AFTER `reset_base` and both are `reset`
     # events, so reset_base places the robot using the terrain origins of the
     # OLD terrain and the terrain is regenerated afterwards -- leaving the robot
