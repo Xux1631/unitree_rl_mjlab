@@ -305,13 +305,14 @@ def _run_trial(
   if video is not None and video_starts is not None:
     video_starts.append(global_steps)
 
-  # play mode randomises the terrain patch on reset with an event that runs
-  # *after* ``reset_base``, so the robot is placed relative to the origin that
-  # existed before the reset, not the one selected afterwards.  All patches are
-  # the same mandated flight, so anchoring the course frame to the placement
-  # origin is what makes "0.9 m in front of the first riser" correct.
-  origin_x = float(env.unwrapped.scene.env_origins[0][0].item())
+  # The terrain patch is randomised by a reset event that we register BEFORE
+  # ``reset_base`` (see quadruped_3320_stairs_env_cfg), so the terrain and its
+  # origins are already final by the time reset_base places the robot.  Sample
+  # the course origin AFTER the reset -- sampling it before would anchor the
+  # course frame to the previous patch and offset x by whole patch spacings
+  # (observed: max_x jumping to +/-13 m).
   obs, _ = env.reset()
+  origin_x = float(env.unwrapped.scene.env_origins[0][0].item())
   command = env.unwrapped.command_manager.get_command("twist")
   command_speed = float(command[0, 0].item())
   step_dt = float(env.unwrapped.step_dt)
