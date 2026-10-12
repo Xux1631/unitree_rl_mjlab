@@ -242,8 +242,10 @@ def quadruped_3320_stairs_env_cfg(
   cfg.rewards["foot_gait"].weight = 0.0
   cfg.rewards["stand_still"].weight = 0.0
   cfg.rewards["track_angular_velocity"].weight = 0.0
-  for group in ("actor", "critic"):
-    cfg.observations[group].terms.pop("phase", None)
+  # NB: the phase observation is KEPT.  attempt 7 initially removed it while
+  # also adding a phase-dependent trot-reference reward, which left the policy
+  # blind to the phase it was asked to track -- the reference was unusable.
+  # Restore it so the shaping term is actually observable.
 
   # (9) Trot-reference shaping.  Attempts 1-6 all stalled at the "do nothing"
   #     velocity-tracking ceiling; PPO never discovered a gait even though an
