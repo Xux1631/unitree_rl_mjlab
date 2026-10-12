@@ -44,3 +44,7 @@ from .unitree_h2.h2_constants import (
 from .unitree_h2.h2_constants import (
   get_h2_robot_cfg as get_h2_robot_cfg,
 )
+
+from .quadruped_3320.quadruped_3320_constants import (
+  get_quadruped_3320_robot_cfg as get_quadruped_3320_robot_cfg,
+)
