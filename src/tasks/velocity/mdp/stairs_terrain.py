@@ -101,6 +101,16 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
   stair_width: float | None = None
   """Width of the steps/platform along ``y``, in meters. ``None`` (default)
   uses the full sub-terrain width, so there are no gaps beside the stairs."""
+  curriculum_height: bool = False
+  """If True, ``difficulty`` ramps the step HEIGHT from ``min_step_height`` to
+  the mandated 0.13 m, so the policy meets a 3-4 cm curb first and only later the
+  full 13 cm rise.  Without this the easiest terrain row is already a full 13 cm
+  step (29% of this model's 0.45 m leg), which is why the policy walks the
+  approach and then stops dead in front of the stairs instead of stepping up."""
+
+  min_step_height: float = 0.04
+  """Step height at ``difficulty == 0`` when ``curriculum_height`` is set."""
+
   curriculum_steps: bool = False
   """If True, ``difficulty`` ramps the NUMBER of steps from 1 to ``num_steps``.
 
@@ -172,9 +182,16 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
       n_steps = self.num_steps
     del rng  # Deterministic layout.
 
+    # Difficulty-varied rise, 0.04 m at difficulty 0 up to the mandated 0.13 m.
+    if self.curriculum_height:
+      frac_h = min(max(float(difficulty), 0.0), 1.0)
+      step_h = self.min_step_height + frac_h * (self.step_height - self.min_step_height)
+    else:
+      step_h = self.step_height
+
     body = spec.body("terrain")
 
-    total_rise = n_steps * self.step_height
+    total_rise = n_steps * step_h
     flight_length = (
       self.approach_depth + n_steps * self.step_tread + self.platform_depth
     )
@@ -215,7 +232,7 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
     # and its exposed tread spans exactly one step_tread along +x.
     step_geoms: list[mujoco.MjsGeom] = []
     for k in range(n_steps):
-      top_z = (k + 1) * self.step_height
+      top_z = (k + 1) * step_h
       box_height = top_z + self.base_thickness
       box = body.add_geom(
         type=mujoco.mjtGeom.mjGEOM_BOX,
@@ -246,7 +263,7 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
       TerrainGeometry(geom=platform, color=brand_ramp(_MUJOCO_GREEN, 0.5))
     )
 
-    self._assert_emitted_geometry(step_geoms, platform, n_steps)
+    self._assert_emitted_geometry(step_geoms, platform, n_steps, step_h)
 
     # Spawn on the approach, facing +x (towards the stairs).
     origin_x = stairs_x0 - self.spawn_offset
@@ -264,7 +281,11 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
     )
 
   def _assert_emitted_geometry(
-    self, step_geoms: list[mujoco.MjsGeom], platform: mujoco.MjsGeom, n_steps: int
+    self,
+    step_geoms: list[mujoco.MjsGeom],
+    platform: mujoco.MjsGeom,
+    n_steps: int,
+    step_h: float,
   ) -> None:
     """Assert the emitted boxes encode the configured dimensions exactly."""
     assert len(step_geoms) == n_steps
@@ -273,11 +294,11 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
         f"step {k} tread is {2.0 * box.size[0]}, expected {self.step_tread}."
       )
       top_z = box.pos[2] + box.size[2]
-      assert abs(top_z - (k + 1) * self.step_height) < 1e-12, (
-        f"step {k} top is {top_z}, expected {(k + 1) * self.step_height}."
+      assert abs(top_z - (k + 1) * step_h) < 1e-12, (
+        f"step {k} top is {top_z}, expected {(k + 1) * step_h}."
       )
     platform_top = platform.pos[2] + platform.size[2]
-    assert abs(platform_top - n_steps * self.step_height) < 1e-12, (
+    assert abs(platform_top - n_steps * step_h) < 1e-12, (
       f"platform top is {platform_top}, expected {self.total_rise}."
     )
 

@@ -124,6 +124,11 @@ def quadruped_3320_stairs_env_cfg(
         # mjlab moves a robot up a row when it walks > size[0]/2 = 2.25 m and
         # down a row when it makes less than half the commanded distance.
         curriculum_steps=True,
+        # Also ramp the RISE, 4 cm -> 13 cm.  Previously every row -- even the
+        # easiest -- had a full 13 cm step (29% of this model's 0.45 m leg), so
+        # the policy walked the approach and stopped dead in front of the stairs.
+        curriculum_height=True,
+        min_step_height=0.04,
       ),
     }
 
