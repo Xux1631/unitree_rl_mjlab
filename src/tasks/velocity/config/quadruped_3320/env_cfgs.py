@@ -441,10 +441,21 @@ def quadruped_3320_stairs_env_cfg(
   # correctly learned to stand perfectly still to avoid it (measured: 0.131 m
   # in 10 s, frozen).  Penalising only below 0.27 keeps true crawling charged
   # (-1.4/step at 0.20, -2.4 at 0.15) while leaving normal walking free.
+  # DISABLED (weight -2, effectively inert).  At -20 -- even with a 0.27
+  # dead-zone -- the policy froze in BOTH the v20 fine-tune and the v22
+  # scratch run: any base dip risked a large charge, so standing perfectly
+  # still was optimal (measured 0.13-0.15 m of travel in 10 s).  Note the
+  # assessment's 4.2 minimum results are FUNCTIONAL -- walk 30 s, respond to a
+  # forward velocity command, keep the travel direction, climb the stairs -- and
+  # none of them require an upright posture.  This model appears to walk only in
+  # a low stance, so "force it upright" was fighting the gait and cost us the
+  # walking behaviour itself.  Keep a token -2 so extreme dragging is still
+  # mildly discouraged, and put the pressure on direction (yaw) and climbing
+  # instead, which ARE requirements.
   cfg.rewards["base_height_penalty"] = RewardTermCfg(
     func=base_height_penalty,
-    weight=-20.0,
-    params={"base_height": 0.27},
+    weight=-2.0,
+    params={"base_height": 0.25},
   )
 
   # (13) yaw_deviation_penalty.  track_linear_velocity compares the command
