@@ -39,7 +39,7 @@ def quadruped_3320_stairs_env_cfg(
   # under 100 rows, so 512 keeps a 5x margin at a sixth of the memory.
   cfg.sim.nconmax = 96
   cfg.sim.njmax = 512
-  cfg.sim.mujoco.ccd_iterations = 500
+  cfg.sim.mujoco.ccd_iterations = 50
   cfg.sim.contact_sensor_maxmatch = 500
 
   cfg.scene.entities = {"robot": get_quadruped_3320_robot_cfg()}
