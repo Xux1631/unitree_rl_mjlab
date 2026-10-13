@@ -55,4 +55,27 @@ def base_height_penalty(
   return torch.clamp(base_height - z, min=0.0)
 
 
-__all__ = ["climb_progress", "base_height_penalty"]
+def yaw_deviation_penalty(
+  env,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Penalise heading deviation from the initial (+x) direction.
+
+  ``track_linear_velocity`` compares the command against
+  ``root_link_lin_vel_b`` -- the BODY frame.  So a robot that has turned 90
+  degrees and is walking off the course still tracks its commanded forward
+  speed perfectly and collects the full reward.  Turning away from the
+  staircase therefore costs nothing, which is exactly the "turns its head and
+  runs off" behaviour seen in the v15/v16 rollouts.  Pinning the heading
+  command only expresses a preference; it does not punish the robot for
+  actually turning.  This returns yaw^2 (rad^2) to be scaled by a NEGATIVE
+  weight, so any turn away from the course is directly charged for.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  quat = asset.data.root_link_quat_w  # (w, x, y, z)
+  w, x, y, z = quat[:, 0], quat[:, 1], quat[:, 2], quat[:, 3]
+  yaw = torch.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+  return yaw * yaw
+
+
+__all__ = ["climb_progress", "base_height_penalty", "yaw_deviation_penalty"]

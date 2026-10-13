@@ -19,6 +19,7 @@ from src.tasks.velocity.mdp.gait_reference import trot_gait_reference
 from src.tasks.velocity.mdp.climb_reward import (
   base_height_penalty,
   climb_progress,
+  yaw_deviation_penalty,
 )
 from src.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
 
@@ -438,6 +439,21 @@ def quadruped_3320_stairs_env_cfg(
     func=base_height_penalty,
     weight=-4.0,
     params={"base_height": 0.33},
+  )
+
+  # (13) yaw_deviation_penalty.  track_linear_velocity compares the command
+  #      against the BODY-frame velocity, so a robot that has turned away and is
+  #      walking off-course still tracks its commanded forward speed perfectly
+  #      and scores full marks.  Turning away from the staircase is therefore
+  #      free -- exactly the "turns its head and runs off" behaviour seen in the
+  #      v15/v16 rollouts.  Pinning the heading command only states a
+  #      preference; this charges for actually turning.  yaw^2 with weight -2.0
+  #      gives 4.9/step at 90 deg (beating the 3.0 the velocity term can pay) and
+  #      0.55/step at 30 deg.
+  cfg.rewards["yaw_deviation_penalty"] = RewardTermCfg(
+    func=yaw_deviation_penalty,
+    weight=-2.0,
+    params={},
   )
 
   # (10) pose.  A stationary robot collects +0.61/step from the pose reward --
