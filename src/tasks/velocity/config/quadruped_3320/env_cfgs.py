@@ -322,6 +322,22 @@ def quadruped_3320_stairs_env_cfg(
   )
 
   # Apply play mode overrides.
+  # (14) Remove the height-scan observation from the STAIRS task too.
+  #      Diagnostic: Quadruped-3320-Flat, which differs from this task ONLY in
+  #      (a) plane instead of staircase terrain and (b) no terrain_scan sensor /
+  #      height_scan observation, learns to walk within ~330 iterations and
+  #      tracks a 0.4 m/s command to within 0.007 m/s (world-coordinate trace:
+  #      4.07 m in 10 s, 100% of envs above 1 m).  This task never moves at all.
+  #      Since the reward stack, action mapping and actuators are identical, the
+  #      blocker is one of those two differences.  Dropping the raycast makes the
+  #      observation space match the flat task exactly (both 45), so the trained
+  #      flat policy can be transferred in directly.
+  cfg.scene.sensors = tuple(
+    s for s in (cfg.scene.sensors or ()) if s.name != "terrain_scan"
+  )
+  cfg.observations["actor"].terms.pop("height_scan", None)
+  cfg.observations["critic"].terms.pop("height_scan", None)
+
   if play:
     # Effectively infinite episode length.
     cfg.episode_length_s = int(1e9)
@@ -469,7 +485,7 @@ def quadruped_3320_stairs_env_cfg(
   #      0.55/step at 30 deg.
   cfg.rewards["yaw_deviation_penalty"] = RewardTermCfg(
     func=yaw_deviation_penalty,
-    weight=-4.0,
+    weight=-1.0,
     params={},
   )
 
@@ -480,7 +496,7 @@ def quadruped_3320_stairs_env_cfg(
   #      hold; this 9.2 kg model stands trivially, so pose is nearly free reward
   #      that anchors the standing local optimum.  Cut it to 0.3 so the pose
   #      reward can no longer outbid travelling.
-  cfg.rewards["pose"].weight = 0.7   # 保持姿态塑形但不让"站着"太香
+  cfg.rewards["pose"].weight = 0.3   # v15 的值：那次真的会走
 
   return cfg
 
@@ -505,8 +521,9 @@ def quadruped_3320_flat_env_cfg(
   cfg.scene.sensors = tuple(
     s for s in (cfg.scene.sensors or ()) if s.name != "terrain_scan"
   )
-  del cfg.observations["actor"].terms["height_scan"]
-  del cfg.observations["critic"].terms["height_scan"]
+  # Already absent now that the stairs cfg drops it too; pop is safe either way.
+  cfg.observations["actor"].terms.pop("height_scan", None)
+  cfg.observations["critic"].terms.pop("height_scan", None)
 
   # Disable terrain curriculum (not present in play mode since rough clears all).
   cfg.curriculum.pop("terrain_levels", None)
