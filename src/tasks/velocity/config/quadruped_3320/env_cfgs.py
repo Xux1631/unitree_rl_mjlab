@@ -147,7 +147,13 @@ def quadruped_3320_stairs_env_cfg(
   #     (mdp.feet_clearance uses site_pos_w[..., 2]), so any foot resting on the
   #     0.13-0.52 m steps is charged |z - target| * |v_xy|; halve the weight so
   #     standing/stepping high is not punished into giving up on the stairs.
-  cfg.rewards["foot_clearance"].params["target_height"] = 0.15
+  # The foot SITE rests at z ~= 0.034 m on flat ground (base 0.33 minus the
+  # 0.296 m foot drop).  A target of 0.15 therefore only lifts the swing foot
+  # 0.116 m -- LESS than the mandated 0.13 m step, so the foot physically cannot
+  # get on top of a step and the robot stalls with its front feet against the
+  # first riser (measured: walks 0.667 m of the 0.9 m approach and stops).
+  # Raise the target so the swing clears a 13 cm rise with margin.
+  cfg.rewards["foot_clearance"].params["target_height"] = 0.25
   cfg.rewards["foot_clearance"].weight = -0.5
 
   # (2) foot_slip.  Slipping off a 0.30 m tread / step edge is the dominant
