@@ -278,7 +278,7 @@ def quadruped_3320_stairs_env_cfg(
   cfg.commands["twist"].ranges.ang_vel_z = (-1.0, 1.0)
   cfg.commands["twist"].rel_heading_envs = 1.0
   cfg.commands["twist"].rel_standing_envs = 0.0
-  cfg.rewards["foot_gait"].weight = 0.0
+  cfg.rewards["foot_gait"].weight = 0.4   # 恢复官方步态塑形（对角触地序列）
   cfg.rewards["stand_still"].weight = 0.0
   cfg.rewards["track_angular_velocity"].weight = 1.0
   # NB: the phase observation is KEPT.  attempt 7 initially removed it while
@@ -452,7 +452,7 @@ def quadruped_3320_stairs_env_cfg(
   #      0.55/step at 30 deg.
   cfg.rewards["yaw_deviation_penalty"] = RewardTermCfg(
     func=yaw_deviation_penalty,
-    weight=-2.0,
+    weight=-4.0,
     params={},
   )
 
@@ -463,7 +463,7 @@ def quadruped_3320_stairs_env_cfg(
   #      hold; this 9.2 kg model stands trivially, so pose is nearly free reward
   #      that anchors the standing local optimum.  Cut it to 0.3 so the pose
   #      reward can no longer outbid travelling.
-  cfg.rewards["pose"].weight = 0.3
+  cfg.rewards["pose"].weight = 1.0   # 回到官方值：姿态与默认站姿一致
 
   return cfg
 
