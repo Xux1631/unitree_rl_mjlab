@@ -381,7 +381,7 @@ def quadruped_3320_stairs_env_cfg(
     # approach (2/5 made body contact 40 ms in) and left them unable to reach
     # the staircase.  For evaluation the start pose must be the assessed one:
     # standing at the course start, facing +x, on the approach.
-    cfg.events["reset_base"].params["pose_range"]["x"] = (0.7, 0.7)
+    cfg.events["reset_base"].params["pose_range"]["x"] = (0.0, 0.0)
     cfg.events["reset_base"].params["pose_range"]["y"] = (0.0, 0.0)
     cfg.events["reset_base"].params["pose_range"]["yaw"] = (0.0, 0.0)
 
