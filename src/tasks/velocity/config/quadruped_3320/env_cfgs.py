@@ -93,11 +93,19 @@ def quadruped_3320_stairs_env_cfg(
     # every environment spawns on the approach.
     gen.curriculum = True
     gen.size = (4.5, 4.5)  # 1.6 approach + 4*0.30 tread + 1.7 platform
-    # With a single sub-terrain every column is geometrically identical, so the
-    # upstream 20 columns only multiply the terrain geom count (20 x 10 patches x
-    # 6 boxes ~= 1200 geoms) and eat GPU memory.  Difficulty is carried by the
-    # ROW index, so 4 columns is plenty; this is what lets 1024+ envs fit in 8 GB.
-    gen.num_cols = 4
+    # ONE column is enough: with a single sub-terrain every column is
+    # geometrically identical (Difficulty is carried by the ROW index), so extra
+    # columns only multiply the terrain geom count and eat GPU memory.  Columns
+    # 4 -> 1 and rows 10 -> 5 cut the grid from 40 patches to 5, and the border
+    # from 20 m to 4 m.
+    #
+    # The row reduction also matters for LEARNING, not just speed: with 10 rows
+    # the curriculum needs nine promotions before an environment ever sees the
+    # mandated full 4-step flight; with 5 rows it needs only four, because the
+    # last row is difficulty 1.0 = 4 steps.
+    gen.num_cols = 1
+    gen.num_rows = 5
+    gen.border_width = 4.0
     gen.sub_terrains = {
       "straight_stairs": BoxStraightStairsTerrainCfg(
         proportion=1.0,
