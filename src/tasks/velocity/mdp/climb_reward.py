@@ -35,4 +35,24 @@ def climb_progress(
   return torch.clamp(z - base_height, min=0.0)
 
 
-__all__ = ["climb_progress"]
+def base_height_penalty(
+  env,
+  base_height: float = 0.33,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Penalise the base dropping below the standing height (ground-hugging).
+
+  ``climb_progress`` only rewards height ABOVE the stance, so a robot that
+  crouches below it is neither rewarded nor punished -- and since crawling flat
+  still collects the full velocity reward, the policy had no reason to stop
+  doing it.  Visual inspection of the v15 rollout showed the robot dragging
+  almost on the ground, which also makes it unable to lift a leg over a 13 cm
+  step.  This returns ``clamp(base_height - z, 0)``, i.e. the depth below the
+  stance, to be scaled by a NEGATIVE weight by the RewardTermCfg.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  z = asset.data.root_link_pos_w[:, 2]
+  return torch.clamp(base_height - z, min=0.0)
+
+
+__all__ = ["climb_progress", "base_height_penalty"]

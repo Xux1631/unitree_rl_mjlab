@@ -16,7 +16,10 @@ from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 
 from src.tasks.velocity.mdp.stairs_terrain import BoxStraightStairsTerrainCfg
 from src.tasks.velocity.mdp.gait_reference import trot_gait_reference
-from src.tasks.velocity.mdp.climb_reward import climb_progress
+from src.tasks.velocity.mdp.climb_reward import (
+  base_height_penalty,
+  climb_progress,
+)
 from src.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
 
 TerrainType = Literal["rough", "obstacles"]
@@ -421,6 +424,19 @@ def quadruped_3320_stairs_env_cfg(
   cfg.rewards["climb_progress"] = RewardTermCfg(
     func=climb_progress,
     weight=5.0,
+    params={"base_height": 0.33},
+  )
+
+  # (12) base_height_penalty.  climb_progress only pays for being ABOVE the
+  #      stance, so a robot that crouches below it neither gains nor loses --
+  #      and crawling flat still collects the full velocity reward, so the
+  #      policy had no reason to stop.  Visual review of the v15 rollout showed
+  #      it dragging almost on the ground, which also prevents lifting a leg
+  #      over a 13 cm step.  Penalise the depth below the stance (weight is
+  #      negative; the function returns a positive magnitude).
+  cfg.rewards["base_height_penalty"] = RewardTermCfg(
+    func=base_height_penalty,
+    weight=-4.0,
     params={"base_height": 0.33},
   )
 
