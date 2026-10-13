@@ -267,16 +267,15 @@ def quadruped_3320_stairs_env_cfg(
   #      sideways and wandered.  Restore heading control so the gait it now has
   #      is actually pointed down the course; keep the forward-only speed
   #      command and the trot bootstrap that produced the gait.
-  cfg.commands["twist"].heading_command = True
-  # The assessment only asks for straight forward travel.  Training with the
-  # full (-pi, pi) heading range taught the policy to turn to random headings,
-  # and in play it ended up veering 65-80 degrees (measured) -- it walked
-  # diagonally off the staircase onto flat ground instead of climbing.  Pin the
-  # training heading to 0 so "keep going straight" is the only behaviour it
-  # learns.
-  cfg.commands["twist"].ranges.heading = (0.0, 0.0)
-  cfg.commands["twist"].ranges.ang_vel_z = (-1.0, 1.0)
-  cfg.commands["twist"].rel_heading_envs = 1.0
+  # Straight-line travel only.  Measured in play: with heading_command=True the
+  # angular-velocity command came out at 0.94 rad/s, i.e. the robot was being
+  # told to TURN while walking, which breaks the assessment's "keep the travel
+  # direction" requirement outright.  Drop heading control entirely and command a
+  # zero yaw rate, so the only thing asked of the policy is to walk forward.
+  cfg.commands["twist"].heading_command = False
+  cfg.commands["twist"].ranges.heading = None
+  cfg.commands["twist"].ranges.ang_vel_z = (0.0, 0.0)
+  cfg.commands["twist"].rel_heading_envs = 0.0
   cfg.commands["twist"].rel_standing_envs = 0.0
   cfg.rewards["foot_gait"].weight = 0.4   # 恢复官方步态塑形（对角触地序列）
   cfg.rewards["stand_still"].weight = 0.0
@@ -380,18 +379,18 @@ def quadruped_3320_stairs_env_cfg(
     # progress stayed at ~0.45 m and every trial was scored "stuck").  The play
     # configuration must match the training configuration apart from the
     # constant command speed.
-    twist_cmd.heading_command = True
+    twist_cmd.heading_command = False
     # Pin the HEADING command to 0 as well.  With the inherited range of
     # (-pi, pi) the single sample taken at reset can point the robot backwards,
     # and then it correctly tracks "walk forward" in its own frame while
     # travelling AWAY from the staircase -- which is exactly the negative
     # forward component seen in every rollout so far.  The assessment wants the
     # robot to walk forward down the course, so hold heading 0 (the reset yaw).
-    twist_cmd.ranges.heading = (0.0, 0.0)
-    twist_cmd.rel_heading_envs = 1.0
+    twist_cmd.ranges.heading = None
+    twist_cmd.rel_heading_envs = 0.0
     twist_cmd.ranges.lin_vel_x = (command_speed, command_speed)
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
-    twist_cmd.ranges.ang_vel_z = (-1.0, 1.0)
+    twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 
   # In play the terrain must be the FIXED mandated staircase.  Every patch is
   # already the identical 4-step flight (curriculum_steps=False), so randomly
