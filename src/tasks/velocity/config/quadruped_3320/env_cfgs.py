@@ -437,7 +437,7 @@ def quadruped_3320_stairs_env_cfg(
   #      negative; the function returns a positive magnitude).
   cfg.rewards["base_height_penalty"] = RewardTermCfg(
     func=base_height_penalty,
-    weight=-4.0,
+    weight=-20.0,
     params={"base_height": 0.33},
   )
 
@@ -463,7 +463,7 @@ def quadruped_3320_stairs_env_cfg(
   #      hold; this 9.2 kg model stands trivially, so pose is nearly free reward
   #      that anchors the standing local optimum.  Cut it to 0.3 so the pose
   #      reward can no longer outbid travelling.
-  cfg.rewards["pose"].weight = 1.0   # 回到官方值：姿态与默认站姿一致
+  cfg.rewards["pose"].weight = 0.7   # 保持姿态塑形但不让"站着"太香
 
   return cfg
 
