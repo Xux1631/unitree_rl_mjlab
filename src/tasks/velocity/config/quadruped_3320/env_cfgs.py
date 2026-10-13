@@ -16,6 +16,7 @@ from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 
 from src.tasks.velocity.mdp.stairs_terrain import BoxStraightStairsTerrainCfg
 from src.tasks.velocity.mdp.gait_reference import trot_gait_reference
+from src.tasks.velocity.mdp.climb_reward import climb_progress
 from src.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
 
 TerrainType = Literal["rough", "obstacles"]
@@ -263,7 +264,13 @@ def quadruped_3320_stairs_env_cfg(
   #      is actually pointed down the course; keep the forward-only speed
   #      command and the trot bootstrap that produced the gait.
   cfg.commands["twist"].heading_command = True
-  cfg.commands["twist"].ranges.heading = (-3.141592653589793, 3.141592653589793)
+  # The assessment only asks for straight forward travel.  Training with the
+  # full (-pi, pi) heading range taught the policy to turn to random headings,
+  # and in play it ended up veering 65-80 degrees (measured) -- it walked
+  # diagonally off the staircase onto flat ground instead of climbing.  Pin the
+  # training heading to 0 so "keep going straight" is the only behaviour it
+  # learns.
+  cfg.commands["twist"].ranges.heading = (0.0, 0.0)
   cfg.commands["twist"].ranges.ang_vel_z = (-1.0, 1.0)
   cfg.commands["twist"].rel_heading_envs = 1.0
   cfg.commands["twist"].rel_standing_envs = 0.0
@@ -403,6 +410,19 @@ def quadruped_3320_stairs_env_cfg(
     cfg.events["reset_base"].params["pose_range"]["x"] = (0.0, 0.0)
     cfg.events["reset_base"].params["pose_range"]["y"] = (0.0, 0.0)
     cfg.events["reset_base"].params["pose_range"]["yaw"] = (0.0, 0.0)
+
+  # (11) climb_progress.  The velocity reward only sees horizontal speed, so
+  #      walking flat AROUND the stairs is a local optimum (v15 walks 9.2 m in
+  #      30 s yet its base never leaves the approach).  Reward the base height
+  #      above the standing height -- reachable only by climbing -- to give a
+  #      direct gradient up the staircase.  On the top platform this is
+  #      (0.85 - 0.33) * 5.0 = 2.6 per step, comparable to the +3.0 the velocity
+  #      term can pay, so climbing and walking stay in balance.
+  cfg.rewards["climb_progress"] = RewardTermCfg(
+    func=climb_progress,
+    weight=5.0,
+    params={"base_height": 0.33},
+  )
 
   # (10) pose.  A stationary robot collects +0.61/step from the pose reward --
   #      the single largest term it earns while doing nothing, and bigger than
