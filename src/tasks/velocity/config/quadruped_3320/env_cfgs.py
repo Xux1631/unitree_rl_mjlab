@@ -145,7 +145,17 @@ def quadruped_3320_stairs_env_cfg(
   #     towards locomotion was exponentially flat.  Widen the kernel to
   #     std = 1.0 (a 0.1 m/s error still scores 0.99, so the 0.4 m/s test tier
   #     is unaffected) and raise the weight so tracking beats standing.
-  cfg.rewards["track_linear_velocity"].params["std"] = 0.5
+  # Narrowed from 0.5 to 0.25 -- the decisive change.  A command sweep on the
+  # v12 checkpoint (16 envs, 10 s) showed the policy CAN walk but only at high
+  # commands: 0.4 -> 0.035 m/s, 0.6 -> 0.18, 0.7 -> 0.44, 0.8 -> 0.51,
+  # 1.0 -> 0.86 m/s (100% of envs above 1 m).  It simply refuses to walk at the
+  # 0.4 m/s acceptance speed.  Reason: with std = 0.5 a stationary robot at
+  # 0.4 m/s still scores exp(-0.64) = 0.53 of the maximum, i.e. 1.6 of a
+  # possible 3.0, so standing is more than half as good as walking.  At
+  # std = 0.25 the same stationary robot scores exp(-2.56) = 0.077 -> 0.23,
+  # a ~13x advantage for walking instead of 1.9x.  The exploration problem is
+  # already solved (the gait exists); only the incentive was mis-scaled.
+  cfg.rewards["track_linear_velocity"].params["std"] = 0.25
   cfg.rewards["track_linear_velocity"].weight = 2.0
 
   # (5) foot_gait.  The contact-sequence reward can be satisfied by marching in
@@ -220,7 +230,8 @@ def quadruped_3320_stairs_env_cfg(
   #     Standing then scores exp(-(0.5/0.5)^2) = 0.37 of the maximum while
   #     walking scores ~1.0, a 2.7x advantage worth ~+1.9/step at weight 3.0 --
   #     far more than the remaining motion penalties (~0.3/step).
-  cfg.commands["twist"].ranges.lin_vel_x = (0.3, 0.7)
+  # Focus the command range on the acceptance speed now that the gait exists.
+  cfg.commands["twist"].ranges.lin_vel_x = (0.3, 0.5)
   cfg.commands["twist"].ranges.lin_vel_y = (0.0, 0.0)
   cfg.commands["twist"].ranges.ang_vel_z = (0.0, 0.0)
   cfg.curriculum.pop("command_vel", None)   # do not widen it again
