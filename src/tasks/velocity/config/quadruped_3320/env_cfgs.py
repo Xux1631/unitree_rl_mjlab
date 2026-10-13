@@ -435,10 +435,16 @@ def quadruped_3320_stairs_env_cfg(
   #      it dragging almost on the ground, which also prevents lifting a leg
   #      over a 13 cm step.  Penalise the depth below the stance (weight is
   #      negative; the function returns a positive magnitude).
+  # Dead-zone at 0.27, NOT the 0.33 stance height.  With the threshold at 0.33
+  # a normal walking gait -- whose CoM bobs +-2-3 cm every step -- was charged
+  # 0.02*20 = 0.4/step, i.e. -400 over a 1000-step episode, and the policy
+  # correctly learned to stand perfectly still to avoid it (measured: 0.131 m
+  # in 10 s, frozen).  Penalising only below 0.27 keeps true crawling charged
+  # (-1.4/step at 0.20, -2.4 at 0.15) while leaving normal walking free.
   cfg.rewards["base_height_penalty"] = RewardTermCfg(
     func=base_height_penalty,
     weight=-20.0,
-    params={"base_height": 0.33},
+    params={"base_height": 0.27},
   )
 
   # (13) yaw_deviation_penalty.  track_linear_velocity compares the command
