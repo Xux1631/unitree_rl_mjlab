@@ -153,7 +153,7 @@ def quadruped_3320_stairs_env_cfg(
   # get on top of a step and the robot stalls with its front feet against the
   # first riser (measured: walks 0.667 m of the 0.9 m approach and stops).
   # Raise the target so the swing clears a 13 cm rise with margin.
-  cfg.rewards["foot_clearance"].params["target_height"] = 0.18
+  cfg.rewards["foot_clearance"].params["target_height"] = 0.17
   cfg.rewards["foot_clearance"].weight = -0.5
 
   # (2) foot_slip.  Slipping off a 0.30 m tread / step edge is the dominant
@@ -450,7 +450,7 @@ def quadruped_3320_stairs_env_cfg(
   #      term can pay, so climbing and walking stay in balance.
   cfg.rewards["climb_progress"] = RewardTermCfg(
     func=climb_progress,
-    weight=10.0,
+    weight=5.0,
     params={"base_height": 0.33},
   )
 
@@ -480,7 +480,7 @@ def quadruped_3320_stairs_env_cfg(
   # instead, which ARE requirements.
   cfg.rewards["base_height_penalty"] = RewardTermCfg(
     func=base_height_penalty,
-    weight=-10.0,
+    weight=-2.0,
     params={"base_height": 0.25},
   )
 
@@ -495,7 +495,7 @@ def quadruped_3320_stairs_env_cfg(
   #      0.55/step at 30 deg.
   cfg.rewards["yaw_deviation_penalty"] = RewardTermCfg(
     func=yaw_deviation_penalty,
-    weight=-2.0,
+    weight=-1.0,
     params={},
   )
 
