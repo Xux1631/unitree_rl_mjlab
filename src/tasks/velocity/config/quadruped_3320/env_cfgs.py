@@ -242,7 +242,7 @@ def quadruped_3320_stairs_env_cfg(
 
   cfg.terminations["illegal_contact"] = TerminationTermCfg(
     func=mdp.illegal_contact,
-    params={"sensor_name": nonfoot_ground_cfg.name, "force_threshold": 10.0},
+    params={"sensor_name": nonfoot_ground_cfg.name, "force_threshold": 40.0},
   )
 
   # (7) Forward-only command distribution.  This is the decisive change.  With
