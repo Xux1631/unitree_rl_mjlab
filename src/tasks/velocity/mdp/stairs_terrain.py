@@ -101,12 +101,11 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
   stair_width: float | None = None
   """Width of the steps/platform along ``y``, in meters. ``None`` (default)
   uses the full sub-terrain width, so there are no gaps beside the stairs."""
-  warmup_steps: int = 3
-  """Number of smooth lead-in steps placed BEFORE the mandated flight.  Their
-  rises ramp 0 -> step_height, so the last lead-in step is exactly the mandated
-  13 cm rise and the robot is eased onto the staircase instead of meeting a full
-  13 cm curb from flat ground (which is where every previous policy stalled).
-  Set to 0 to disable."""
+  warmup_heights: tuple[float, ...] = ()
+  """Explicit RISES (metres), one per smooth lead-in step placed BEFORE the
+  mandated flight.  Empty disables the lead-in.  The tops are cumulative: with
+  (0.05, 0.07, 0.09, 0.11) the four lead-in tops are 0.05/0.12/0.21/0.32 m, and
+  the mandated 13 cm flight then continues from 0.32 m."""
 
   curriculum_height: bool = False
   """If True, ``difficulty`` ramps the step HEIGHT from ``min_step_height`` to
@@ -198,8 +197,9 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
 
     body = spec.body("terrain")
 
-    n_warm = max(0, int(self.warmup_steps))
-    warm_rise = step_h if n_warm > 0 else 0.0
+    warm_heights = tuple(float(h) for h in self.warmup_heights)
+    n_warm = len(warm_heights)
+    warm_rise = float(sum(warm_heights))
     total_rise = warm_rise + n_steps * step_h
     flight_length = (
       self.approach_depth
@@ -245,8 +245,10 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
     step_geoms: list[mujoco.MjsGeom] = []
     # Smooth lead-in steps: rise i * step_h / n_warm for i = 1..n_warm, so the
     # last one equals the mandated step height and blends into the flight.
+    _acc = 0.0
     for i in range(n_warm):
-      top_z = (i + 1) * step_h / n_warm
+      _acc += warm_heights[i]
+      top_z = _acc
       box_height = top_z + self.base_thickness
       body.add_geom(
         type=mujoco.mjtGeom.mjGEOM_BOX,

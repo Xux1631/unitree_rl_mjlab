@@ -96,39 +96,31 @@ def quadruped_3320_stairs_env_cfg(
     # curriculum=True mjlab allocates terrain types by COLUMN via normalised
     # proportions, so a single sub-terrain puts the staircase in every column and
     # every environment spawns on the approach.
-    gen.curriculum = True
-    gen.size = (5.5, 4.5)  # 1.6 approach + 3*0.30 lead-in + 4*0.30 tread + 1.7 platform
-    # ONE column is enough: with a single sub-terrain every column is
-    # geometrically identical (Difficulty is carried by the ROW index), so extra
-    # columns only multiply the terrain geom count and eat GPU memory.  Columns
-    # 4 -> 1 and rows 10 -> 5 cut the grid from 40 patches to 5, and the border
-    # from 20 m to 4 m.
-    #
-    # The row reduction also matters for LEARNING, not just speed: with 10 rows
-    # the curriculum needs nine promotions before an environment ever sees the
-    # mandated full 4-step flight; with 5 rows it needs only four, because the
-    # last row is difficulty 1.0 = 4 steps.
+    # ---------------------------------------------------------------
+    # ONE straight corridor, ONE patch: no terrain grid, so no cracks.
+    # Layout along +x (metres):
+    #   0.0 .. 5.0        flat approach (5 m), 3 m wide
+    #   5.0 .. 7.4        8 steps, each with a 0.30 m tread:
+    #                       rises 0.05 / 0.07 / 0.09 / 0.11  (smooth lead-in)
+    #                       then  0.13 / 0.13 / 0.13 / 0.13  (mandated flight)
+    #   7.4 .. 9.4        top platform (2 m)
+    # Cumulative tops: 0.05, 0.12, 0.21, 0.32, 0.45, 0.58, 0.71, 0.84 m.
+    # The mandated 4 x 13 cm flight is intact and sits on top of the lead-in.
+    # ---------------------------------------------------------------
+    gen.curriculum = False          # single patch, fixed geometry
+    gen.size = (9.5, 3.0)           # 5.0 approach + 8*0.30 tread + 2.0 platform
     gen.num_cols = 1
-    gen.num_rows = 5
-    gen.border_width = 0.0   # patch 紧贴，消除可视化上的「裂缝」
+    gen.num_rows = 1
+    gen.border_width = 0.0
     gen.sub_terrains = {
       "straight_stairs": BoxStraightStairsTerrainCfg(
         proportion=1.0,
-        approach_depth=1.6,
-        platform_depth=1.7,
-        spawn_offset=0.9,
-        # Terrain curriculum: difficulty (the grid ROW) ramps the NUMBER of
-        # steps 1 -> 4.  Every step is always exactly 0.13 m high with a 0.30 m
-        # tread, so the required geometry is never weakened -- at difficulty 1
-        # the patch is exactly the mandated 4 x 0.13 m x 0.30 m staircase.
-        # mjlab moves a robot up a row when it walks > size[0]/2 = 2.25 m and
-        # down a row when it makes less than half the commanded distance.
-        curriculum_steps=True,
-        # Also ramp the RISE, 4 cm -> 13 cm.  Previously every row -- even the
-        # easiest -- had a full 13 cm step (29% of this model's 0.45 m leg), so
-        # the policy walked the approach and stopped dead in front of the stairs.
-        curriculum_height=True,
-        min_step_height=0.04,
+        approach_depth=5.0,
+        platform_depth=2.0,
+        spawn_offset=4.5,           # spawn near the far end of the approach
+        warmup_heights=(0.05, 0.07, 0.09, 0.11),
+        curriculum_steps=False,     # fixed 4 mandated steps
+        curriculum_height=False,    # fixed 0.13 m rise
       ),
     }
 
@@ -364,9 +356,15 @@ def quadruped_3320_stairs_env_cfg(
     if cfg.scene.terrain is not None:
       if cfg.scene.terrain.terrain_generator is not None:
         cfg.scene.terrain.terrain_generator.curriculum = False
-        cfg.scene.terrain.terrain_generator.num_cols = 5
-        cfg.scene.terrain.terrain_generator.num_rows = 5
-        cfg.scene.terrain.terrain_generator.border_width = 10.0
+        # ONE straight corridor in play too.  These were 5 / 5 / 10.0, which
+        # turned the evaluation terrain into a 5x5 grid of patches 10 m apart --
+        # the "crack" visible in the viewer, with the robot falling through the
+        # gaps.  Keep the single-patch, zero-border layout of the training config.
+        cfg.scene.terrain.terrain_generator.num_cols = 1
+        cfg.scene.terrain.terrain_generator.num_rows = 1
+        cfg.scene.terrain.terrain_generator.border_width = 0.0
+
+
         # Evaluation must always use the full mandated flight, so switch the
         # difficulty ramp off; play mode also samples terrain randomly, which
         # would otherwise produce variable step counts.
