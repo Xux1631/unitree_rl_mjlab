@@ -110,7 +110,7 @@ def quadruped_3320_stairs_env_cfg(
     # last row is difficulty 1.0 = 4 steps.
     gen.num_cols = 1
     gen.num_rows = 5
-    gen.border_width = 4.0
+    gen.border_width = 0.0   # patch 紧贴，消除可视化上的「裂缝」
     gen.sub_terrains = {
       "straight_stairs": BoxStraightStairsTerrainCfg(
         proportion=1.0,

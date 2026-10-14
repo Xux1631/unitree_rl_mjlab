@@ -292,7 +292,13 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
     self._assert_emitted_geometry(step_geoms, platform, n_steps, step_h, warm_rise)
 
     # Spawn on the approach, facing +x (towards the stairs).
-    origin_x = stairs_x0 - self.spawn_offset
+    # Spawn `spawn_offset` metres in front of the FIRST riser.  With lead-in
+    # steps present that first riser is the first lead-in step, not the first
+    # mandated step, so the offset must be measured from warm_x0.  Measuring from
+    # stairs_x0 (as before) put the origin exactly ON the first lead-in step and
+    # the robot had no flat run-up at all -- it spawned on the step edge, fell
+    # immediately and reset forever.
+    origin_x = warm_x0 - self.spawn_offset
     if origin_x < 0.0:
       raise ValueError(
         f"spawn_offset {self.spawn_offset:.3f} m does not fit on the approach "
