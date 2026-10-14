@@ -373,6 +373,15 @@ def quadruped_3320_stairs_env_cfg(
         for _sub in cfg.scene.terrain.terrain_generator.sub_terrains.values():
           if hasattr(_sub, "curriculum_steps"):
             _sub.curriculum_steps = False
+          # CRITICAL: also disable the HEIGHT curriculum.  Play sets
+          # curriculum=False, so mjlab samples difficulty ~ U(0,1) for every
+          # patch; with curriculum_height left on, step_h = 0.04 + d*0.09 became
+          # RANDOM 4-13 cm instead of the mandated fixed 13 cm.  Measured on the
+          # real generator: 0 of 25 play patches reached the full 0.65 m rise, so
+          # every evaluation so far was run on a non-compliant terrain.  Turning
+          # it off pins step_h = step_height = 0.13 m for all patches.
+          if hasattr(_sub, "curriculum_height"):
+            _sub.curriculum_height = False
 
     # The assessment's play procedure requires a CONSTANT forward velocity
     # command ("机器人从默认站姿开始，并接收恒定前向速度命令"), not a randomly
