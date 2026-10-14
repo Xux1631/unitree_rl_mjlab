@@ -250,7 +250,7 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
       _acc += warm_heights[i]
       top_z = _acc
       box_height = top_z + self.base_thickness
-      body.add_geom(
+      glyph = body.add_geom(
         type=mujoco.mjtGeom.mjGEOM_BOX,
         size=(0.5 * self.step_tread, 0.5 * width, 0.5 * box_height),
         pos=(
@@ -259,6 +259,11 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
           top_z - 0.5 * box_height,
         ),
       )
+      # Register the lead-in boxes in `geometries` too.  mjlab shifts the geoms
+      # it knows about into the patch frame; leaving the lead-ins unregistered
+      # left them at raw local coordinates, i.e. parked past the end of the
+      # corridor instead of between the approach and the mandated flight.
+      geometries.append(TerrainGeometry(geom=glyph, color=brand_ramp(_MUJOCO_BLUE, 0.0)))
     for k in range(n_steps):
       top_z = warm_rise + (k + 1) * step_h
       box_height = top_z + self.base_thickness
