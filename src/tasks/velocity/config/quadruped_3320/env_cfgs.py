@@ -97,7 +97,7 @@ def quadruped_3320_stairs_env_cfg(
     # proportions, so a single sub-terrain puts the staircase in every column and
     # every environment spawns on the approach.
     gen.curriculum = True
-    gen.size = (4.5, 4.5)  # 1.6 approach + 4*0.30 tread + 1.7 platform
+    gen.size = (5.5, 4.5)  # 1.6 approach + 3*0.30 lead-in + 4*0.30 tread + 1.7 platform
     # ONE column is enough: with a single sub-terrain every column is
     # geometrically identical (Difficulty is carried by the ROW index), so extra
     # columns only multiply the terrain geom count and eat GPU memory.  Columns
@@ -154,7 +154,7 @@ def quadruped_3320_stairs_env_cfg(
   # first riser (measured: walks 0.667 m of the 0.9 m approach and stops).
   # Raise the target so the swing clears a 13 cm rise with margin.
   cfg.rewards["foot_clearance"].params["target_height"] = 0.17
-  cfg.rewards["foot_clearance"].weight = -0.5
+  cfg.rewards["foot_clearance"].weight = -0.8
 
   # (2) foot_slip.  Slipping off a 0.30 m tread / step edge is the dominant
   #     failure mode on this terrain, and it is also what turns a stumble into a
@@ -198,7 +198,7 @@ def quadruped_3320_stairs_env_cfg(
   #     walking clearly dominates.
   cfg.rewards["action_rate_l2"].weight = -0.015   # was -0.05
   cfg.rewards["foot_slip"].weight = -0.25         # was -0.5 (upstream value)
-  cfg.rewards["track_linear_velocity"].weight = 3.0  # was 2.0
+  cfg.rewards["track_linear_velocity"].weight = 1.5   # 官方 tracking_lin_vel 1.0
 
   # (3) fell_over termination.  The upstream limit is 70 deg, but the assessment
   #     fails a run when |roll| or |pitch| exceeds 45 deg, so 70 deg would let the
@@ -288,9 +288,9 @@ def quadruped_3320_stairs_env_cfg(
   cfg.commands["twist"].ranges.ang_vel_z = (0.0, 0.0)
   cfg.commands["twist"].rel_heading_envs = 0.0
   cfg.commands["twist"].rel_standing_envs = 0.0
-  cfg.rewards["foot_gait"].weight = 0.4   # 恢复官方步态塑形（对角触地序列）
+  cfg.rewards["foot_gait"].weight = 0.8   # 官方 feet_air_time 1.0：奖励抬腿迈步
   cfg.rewards["stand_still"].weight = 0.0
-  cfg.rewards["track_angular_velocity"].weight = 1.0
+  cfg.rewards["track_angular_velocity"].weight = 0.5   # 官方 tracking_ang_vel 0.5
   # NB: the phase observation is KEPT.  attempt 7 initially removed it while
   # also adding a phase-dependent trot-reference reward, which left the policy
   # blind to the phase it was asked to track -- the reference was unusable.
@@ -306,7 +306,7 @@ def quadruped_3320_stairs_env_cfg(
   #     free to improve on it.
   cfg.rewards["trot_reference"] = RewardTermCfg(
     func=trot_gait_reference,
-    weight=10.0,
+    weight=0.0,
     params={
       # exactly the parameters of the open-loop trot that was measured to walk
       # this model forward (T=0.6 s, A=0.25 rad at the A2 gains, +1.60 m in 8 s)
@@ -450,7 +450,7 @@ def quadruped_3320_stairs_env_cfg(
   #      term can pay, so climbing and walking stay in balance.
   cfg.rewards["climb_progress"] = RewardTermCfg(
     func=climb_progress,
-    weight=5.0,
+    weight=5.0,                               # 台阶任务专用：登高奖励
     params={"base_height": 0.33},
   )
 
@@ -480,7 +480,7 @@ def quadruped_3320_stairs_env_cfg(
   # instead, which ARE requirements.
   cfg.rewards["base_height_penalty"] = RewardTermCfg(
     func=base_height_penalty,
-    weight=-2.0,
+    weight=-1.5,                              # 官方 base_height 1.5（最关键防贴地）
     params={"base_height": 0.25},
   )
 
@@ -506,7 +506,42 @@ def quadruped_3320_stairs_env_cfg(
   #      hold; this 9.2 kg model stands trivially, so pose is nearly free reward
   #      that anchors the standing local optimum.  Cut it to 0.3 so the pose
   #      reward can no longer outbid travelling.
-  cfg.rewards["pose"].weight = 0.3   # v15 的值：那次真的会走
+  cfg.rewards["pose"].weight = 0.5                # 官方 hip_pos：防腿折叠趴下
+
+  # ======================================================================
+  # Official Go1 locomotion template, adapted to mjlab's native function names.
+  # The supplied template uses Isaac Lab names; mapping:
+  #   alive            -> mdp.is_alive                      (+1.0)
+  #   upright          -> body_orientation_l2               (-1.5)
+  #   base_height      -> base_height_penalty               (-1.5)
+  #   feet_air_time    -> foot_gait (+0.8) / foot_clearance (-0.8)
+  #   tracking_lin_vel -> track_linear_velocity             (+1.5)
+  #   tracking_ang_vel -> track_angular_velocity            (+0.5)
+  #   ang_vel_xy       -> body_ang_vel                      (-0.05)
+  #   action_rate      -> action_rate_l2                    (-0.1)
+  #   joint_torques    -> joint_torques_l2                  (-1e-4)
+  #   hip_pos          -> pose                              (+0.5)
+  #   collision        -> already the illegal_contact termination
+  #   lin_vel_z        -> no mjlab equivalent; soft_landing covers impact
+  # ======================================================================
+  cfg.rewards["alive"] = RewardTermCfg(func=mdp.is_alive, weight=1.0)
+  cfg.rewards["joint_torques"] = RewardTermCfg(
+    func=mdp.joint_torques_l2, weight=-1.0e-4
+  )
+  cfg.rewards["body_orientation_l2"].weight = -1.5   # 官方 upright 1.0
+  cfg.rewards["body_ang_vel"].weight = -0.05         # 官方 ang_vel_xy -0.05
+  cfg.rewards["action_rate_l2"].weight = -0.1        # 官方 action_rate -0.1
+
+  # THE decisive anti-crawl mechanism, and the one this project was missing:
+  # end the episode the moment the torso drops below 0.20 m.  Without it a
+  # policy can lie on the ground, never "fall over", and keep collecting alive
+  # plus velocity reward -- exactly the crawling local optimum we kept hitting.
+  # With it, crawling terminates the episode and can never pay.
+  cfg.terminations["base_height_low"] = TerminationTermCfg(
+    func=mdp.root_height_below_minimum,
+    params={"minimum_height": 0.20},
+  )
+
 
   return cfg
 

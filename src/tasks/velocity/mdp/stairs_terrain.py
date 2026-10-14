@@ -101,6 +101,13 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
   stair_width: float | None = None
   """Width of the steps/platform along ``y``, in meters. ``None`` (default)
   uses the full sub-terrain width, so there are no gaps beside the stairs."""
+  warmup_steps: int = 3
+  """Number of smooth lead-in steps placed BEFORE the mandated flight.  Their
+  rises ramp 0 -> step_height, so the last lead-in step is exactly the mandated
+  13 cm rise and the robot is eased onto the staircase instead of meeting a full
+  13 cm curb from flat ground (which is where every previous policy stalled).
+  Set to 0 to disable."""
+
   curriculum_height: bool = False
   """If True, ``difficulty`` ramps the step HEIGHT from ``min_step_height`` to
   the mandated 0.13 m, so the policy meets a 3-4 cm curb first and only later the
@@ -191,9 +198,13 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
 
     body = spec.body("terrain")
 
-    total_rise = n_steps * step_h
+    n_warm = max(0, int(self.warmup_steps))
+    warm_rise = step_h if n_warm > 0 else 0.0
+    total_rise = warm_rise + n_steps * step_h
     flight_length = (
-      self.approach_depth + n_steps * self.step_tread + self.platform_depth
+      self.approach_depth
+      + (n_warm + n_steps) * self.step_tread
+      + self.platform_depth
     )
     if flight_length > self.size[0] + 1e-9:
       raise ValueError(
@@ -206,7 +217,8 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
     # Pad the *front* of the approach so the platform always ends flush with the
     # far edge of the patch (never a cliff behind the platform).
     front_pad = self.size[0] - flight_length
-    stairs_x0 = front_pad + self.approach_depth
+    warm_x0 = front_pad + self.approach_depth
+    stairs_x0 = warm_x0 + n_warm * self.step_tread
     platform_x0 = stairs_x0 + n_steps * self.step_tread
 
     width = self.size[1] if self.stair_width is None else self.stair_width
@@ -222,8 +234,8 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
     # Flat approach, spanning the front of the sub-terrain at ground level.
     approach = body.add_geom(
       type=mujoco.mjtGeom.mjGEOM_BOX,
-      size=(0.5 * stairs_x0, 0.5 * self.size[1], half_base),
-      pos=(0.5 * stairs_x0, y_center, -half_base),
+      size=(0.5 * warm_x0, 0.5 * self.size[1], half_base),
+      pos=(0.5 * warm_x0, y_center, -half_base),
     )
     approach_rgba = darken_rgba(brand_ramp(_MUJOCO_BLUE, 0.0), 0.85)
     geometries.append(TerrainGeometry(geom=approach, color=approach_rgba))
@@ -231,8 +243,22 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
     # Continuous steps. Step k (0-indexed) has its top at (k + 1) * step_height
     # and its exposed tread spans exactly one step_tread along +x.
     step_geoms: list[mujoco.MjsGeom] = []
+    # Smooth lead-in steps: rise i * step_h / n_warm for i = 1..n_warm, so the
+    # last one equals the mandated step height and blends into the flight.
+    for i in range(n_warm):
+      top_z = (i + 1) * step_h / n_warm
+      box_height = top_z + self.base_thickness
+      body.add_geom(
+        type=mujoco.mjtGeom.mjGEOM_BOX,
+        size=(0.5 * self.step_tread, 0.5 * width, 0.5 * box_height),
+        pos=(
+          warm_x0 + (i + 0.5) * self.step_tread,
+          y_center,
+          top_z - 0.5 * box_height,
+        ),
+      )
     for k in range(n_steps):
-      top_z = (k + 1) * step_h
+      top_z = warm_rise + (k + 1) * step_h
       box_height = top_z + self.base_thickness
       box = body.add_geom(
         type=mujoco.mjtGeom.mjGEOM_BOX,
@@ -263,7 +289,7 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
       TerrainGeometry(geom=platform, color=brand_ramp(_MUJOCO_GREEN, 0.5))
     )
 
-    self._assert_emitted_geometry(step_geoms, platform, n_steps, step_h)
+    self._assert_emitted_geometry(step_geoms, platform, n_steps, step_h, warm_rise)
 
     # Spawn on the approach, facing +x (towards the stairs).
     origin_x = stairs_x0 - self.spawn_offset
@@ -286,6 +312,7 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
     platform: mujoco.MjsGeom,
     n_steps: int,
     step_h: float,
+    warm_rise: float = 0.0,
   ) -> None:
     """Assert the emitted boxes encode the configured dimensions exactly."""
     assert len(step_geoms) == n_steps
@@ -294,12 +321,13 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
         f"step {k} tread is {2.0 * box.size[0]}, expected {self.step_tread}."
       )
       top_z = box.pos[2] + box.size[2]
-      assert abs(top_z - (k + 1) * step_h) < 1e-12, (
-        f"step {k} top is {top_z}, expected {(k + 1) * step_h}."
+      assert abs(top_z - (warm_rise + (k + 1) * step_h)) < 1e-12, (
+        f"step {k} top is {top_z}, expected {warm_rise + (k + 1) * step_h}."
       )
     platform_top = platform.pos[2] + platform.size[2]
-    assert abs(platform_top - n_steps * step_h) < 1e-12, (
-      f"platform top is {platform_top}, expected {self.total_rise}."
+    assert abs(platform_top - (warm_rise + n_steps * step_h)) < 1e-12, (
+      f"platform top is {platform_top}, "
+      f"expected {warm_rise + n_steps * step_h}."
     )
 
   def _make_flat_patches(
