@@ -117,7 +117,10 @@ def quadruped_3320_stairs_env_cfg(
         proportion=1.0,
         approach_depth=5.0,
         platform_depth=2.0,
-        spawn_offset=4.5,           # spawn near the far end of the approach
+        # 出生点距第一个踢面 1.0 m，使录屏可见台阶。原值 4.5 m 时出生点在
+        # 第一个踢面前 4.5 m，机器人只前进约 0.97 m 就 stuck，全程停在纯平
+        # 助跑段上、台阶还在 3.5 m 之外，镜头里看不到任何台阶。
+        spawn_offset=1.0,           # 出生点距第一个踢面 1.0 m
         warmup_heights=(0.05, 0.07, 0.09, 0.11),
         curriculum_steps=False,     # fixed 4 mandated steps
         curriculum_height=False,    # fixed 0.13 m rise
