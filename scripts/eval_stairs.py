@@ -137,6 +137,18 @@ def _build_parser() -> argparse.ArgumentParser:
     help="Base random seed. Trial i uses seed + i (default: random).",
   )
   parser.add_argument(
+    "--video-width",
+    type=int,
+    default=None,
+    help="Recorded frame width in pixels (default: env viewer width).",
+  )
+  parser.add_argument(
+    "--video-height",
+    type=int,
+    default=None,
+    help="Recorded frame height in pixels (default: env viewer height).",
+  )
+  parser.add_argument(
     "--no-render",
     action="store_true",
     help="Force headless mode, ignoring --video-dir.",
@@ -420,6 +432,11 @@ def run_eval(args: argparse.Namespace) -> int:
   env_cfg = load_env_cfg(args.task_id, play=True)
   agent_cfg = load_rl_cfg(args.task_id)
   normalize_play_cfg(env_cfg)
+
+  if args.video_width is not None:
+    env_cfg.viewer.width = args.video_width
+  if args.video_height is not None:
+    env_cfg.viewer.height = args.video_height
 
   # One environment per trial keeps episodes fully independent.
   env_cfg.scene.num_envs = 1
