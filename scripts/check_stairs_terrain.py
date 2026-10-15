@@ -108,7 +108,7 @@ def _ray_height(
 
 def _layout(sub, size: tuple[float, float], difficulty: float) -> dict:
   """Mirror of ``BoxStraightStairsTerrainCfg.function``'s layout maths."""
-  n_warm = max(0, int(sub.warmup_steps))
+  n_warm = max(0, len(sub.warmup_heights))
   frac = min(max(float(difficulty), 0.0), 1.0)
   if sub.curriculum_steps:
     n_steps = int(round(1 + frac * (sub.num_steps - 1)))
@@ -220,7 +220,7 @@ def main() -> int:
         f"{terrain_size}")
   print(f"  difficulty={DIFFICULTY}  curriculum_steps={sub.curriculum_steps} "
         f"curriculum_height={sub.curriculum_height} "
-        f"warmup_steps={sub.warmup_steps}")
+        f"warmup_steps={sub.warmup_heights}")
   print(f"  approach_depth={lay['approach']} platform_depth={lay['platform']} "
         f"spawn_offset={lay['spawn_offset']} base_thickness={lay['base_thickness']}")
   print(f"  -> mandated steps={lay['n_steps']} x {lay['step_h']:.3f} m rise x "
