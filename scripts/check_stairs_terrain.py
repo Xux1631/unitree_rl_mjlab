@@ -9,7 +9,8 @@ curriculum difficulty (``difficulty = 1.0``), compiled into a fresh
 
 1. every terrain geom is an axis-aligned box with collisions enabled,
 2. the ``warmup_steps`` smooth lead-in steps are listed separately from the
-   mandated flight; their tops ramp ``1/3, 2/3, 3/3`` of the 0.13 m step rise,
+   mandated flight; their tops are the cumulative sums of the configured
+   absolute rises (``warmup_heights``, e.g. 0.05/0.12/0.21/0.32 m),
 3. exactly 4 mandated step boxes with distinct top surfaces separated by
    exactly 0.13 m and a constant 0.30 m tread along the travel direction (+x),
 4. a flat top platform of ``platform_depth`` whose top is the mandated rise,
@@ -123,7 +124,13 @@ def _layout(sub, size: tuple[float, float], difficulty: float) -> dict:
   approach = float(sub.approach_depth)
   platform = float(sub.platform_depth)
   tread = float(sub.step_tread)
-  warm_rise = step_h if n_warm > 0 else 0.0
+  # The lead-in tops are the *cumulative sums* of the configured absolute rises
+  # (``stairs_terrain`` does ``_acc += warm_heights[i]``), NOT an even split of
+  # ``step_height`` over the lead-in steps.  ``warm_rise`` is therefore the sum
+  # of ``warmup_heights`` and the mandated flight continues from that level.
+  warm_heights = [float(h) for h in sub.warmup_heights]
+  warm_tops = [float(v) for v in np.cumsum(warm_heights)] if warm_heights else []
+  warm_rise = float(sum(warm_heights))
   total_rise = warm_rise + n_steps * step_h
   flight_length = approach + (n_warm + n_steps) * tread + platform
   front_pad = size[0] - flight_length
@@ -137,6 +144,8 @@ def _layout(sub, size: tuple[float, float], difficulty: float) -> dict:
     "tread": tread,
     "approach": approach,
     "platform": platform,
+    "warm_heights": warm_heights,
+    "warm_tops": warm_tops,
     "warm_rise": warm_rise,
     "total_rise": total_rise,
     "flight_length": flight_length,
@@ -156,6 +165,7 @@ def _boxes(lay: dict) -> list[tuple[str, float, float, float]]:
   tread = lay["tread"]
   step_h = lay["step_h"]
   n_warm = lay["n_warm"]
+  warm_tops = lay["warm_tops"]
   boxes = [("approach", 0.5 * lay["warm_x0"], lay["warm_x0"], 0.0)]
   for i in range(n_warm):
     boxes.append(
@@ -163,7 +173,7 @@ def _boxes(lay: dict) -> list[tuple[str, float, float, float]]:
         f"warmup[{i}]",
         lay["warm_x0"] + (i + 0.5) * tread,
         tread,
-        (i + 1) * step_h / max(n_warm, 1),
+        warm_tops[i],
       )
     )
   for k in range(lay["n_steps"]):
@@ -400,22 +410,32 @@ def main() -> int:
   )
   for i, j in enumerate(warm_idx):
     print(f"    {boxes[j][0]}: top_z={boxes[j][3]:.6f} = "
-          f"{i + 1}/{lay['n_warm']} x {lay['step_h']:.3f} m")
+          f"cumsum(warmup_heights)[{i}] = {lay['warm_tops'][i]:.6f} m")
     c.close(
       boxes[j][3],
-      (i + 1) * lay["step_h"] / max(lay["n_warm"], 1),
+      lay["warm_tops"][i],
       EXACT_TOL,
-      f"lead-in step {i} top is {i + 1}/{lay['n_warm']} of the step rise",
+      f"lead-in step {i} top is the cumulative rise "
+      f"{lay['warm_tops'][i]:.6f} m",
     )
     c.close(
       boxes[j][2], EXPECTED_STEP_TREAD, EXACT_TOL, f"lead-in step {i} tread"
     )
   if warm_idx:
+    for i, j in enumerate(warm_idx):
+      prev_top = boxes[warm_idx[i - 1]][3] if i > 0 else 0.0
+      c.close(
+        boxes[j][3] - prev_top,
+        lay["warm_heights"][i],
+        EXACT_TOL,
+        f"lead-in step {i} rises by warmup_heights[{i}]="
+        f"{lay['warm_heights'][i]:.6f} m over the previous level",
+      )
     c.close(
-      boxes[warm_idx[-1]][3] - boxes[warm_idx[-2]][3] if len(warm_idx) > 1 else 0.0,
-      lay["step_h"] / max(lay["n_warm"], 1),
+      boxes[warm_idx[-1]][3],
+      lay["warm_rise"],
       EXACT_TOL,
-      "lead-in rise per step is step_height / warmup_steps",
+      "last lead-in top equals sum(warmup_heights), the mandated flight base",
     )
     print("    NOTE: lead-in steps are NOT the mandated flight; they ease the "
           "robot onto the staircase.")
@@ -635,9 +655,10 @@ def main() -> int:
   print(
     f"RESULT: PASS - mandated flight is exactly {EXPECTED_NUM_STEPS} steps x "
     f"{EXPECTED_STEP_HEIGHT} m x {EXPECTED_STEP_TREAD} m "
-    f"(total rise {EXPECTED_TOTAL_RISE:.2f} m) at difficulty={DIFFICULTY}, "
-    f"plus {lay['n_warm']} smooth lead-in steps of "
-    f"{EXPECTED_STEP_HEIGHT / max(lay['n_warm'], 1):.4f} m each"
+    f"(total rise {EXPECTED_TOTAL_RISE:.2f} m above the "
+    f"{lay['warm_rise']:.2f} m lead-in) at difficulty={DIFFICULTY}, "
+    f"plus {lay['n_warm']} smooth lead-in steps rising "
+    f"{lay['warm_heights']} (cumulative tops {[round(t, 4) for t in lay['warm_tops']]})"
   )
   return 0
 

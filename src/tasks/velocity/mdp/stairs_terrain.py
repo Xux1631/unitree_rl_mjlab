@@ -243,8 +243,11 @@ class BoxStraightStairsTerrainCfg(SubTerrainCfg):
     # Continuous steps. Step k (0-indexed) has its top at (k + 1) * step_height
     # and its exposed tread spans exactly one step_tread along +x.
     step_geoms: list[mujoco.MjsGeom] = []
-    # Smooth lead-in steps: rise i * step_h / n_warm for i = 1..n_warm, so the
-    # last one equals the mandated step height and blends into the flight.
+    # Smooth lead-in steps: each one rises by the configured absolute amount
+    # `warmup_heights[i]`, so its top is the RUNNING SUM of those rises
+    # (`_acc += warmup_heights[i]`).  With (0.05, 0.07, 0.09, 0.11) the tops are
+    # 0.05 / 0.12 / 0.21 / 0.32 m; the mandated flight then continues from
+    # `warm_rise = sum(warmup_heights)`.
     _acc = 0.0
     for i in range(n_warm):
       _acc += warm_heights[i]
